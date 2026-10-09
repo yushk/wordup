@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: els-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: els
+      POSTGRES_PASSWORD: els_dev_password
+      POSTGRES_DB: english_learning
+    ports:
+      - "5432:5432"
+    volumes:
+      - els_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U els -d english_learning"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  els_pgdata:

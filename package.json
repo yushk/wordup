@@ -1,0 +1,13 @@
+{
+  "name": "english-learning-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "英语学习网站 - Vue3 + Express + PostgreSQL 前后端分离",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "db:up": "docker compose up -d",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "seed": "npm --prefix server run seed"
+  }
+}

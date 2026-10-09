@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ 用户 ============
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  nickname     String
+  role         String   @default("USER") // USER | ADMIN
+  createdAt    DateTime @default(now())
+
+  wordBooks    UserWordBook[]
+  userWords    UserWord[]
+  quizAttempts QuizAttempt[]
+  dailyStats   DailyStat[]
+  userArticles UserArticle[]
+  typingStat   TypingStat?
+}
+
+// ============ 词书与单词 ============
+
+model WordBook {
+  id        Int     @id @default(autoincrement())
+  name      String // 中文名，如「大学英语四级」
+  nameEn    String // 英文名，如 CET-4
+  level     String // primary | junior | senior | cet4 | cet6 | kaoyan | ielts | toefl
+  wordCount Int     @default(0)
+  sortOrder Int     @default(0)
+
+  words   Word[]
+  users   UserWordBook[]
+
+  @@unique([level])
+}
+
+model Word {
+  id                 Int      @id @default(autoincrement())
+  wordbookId         Int
+  headword           String
+  phoneticUs         String?
+  phoneticUk         String?
+  // [{ pos: "n.", cn: "苹果", en: "a round fruit" }, ...]
+  definitions        Json     @default("[]")
+  exampleSentence    String?
+  exampleTranslation String?
+  rank               Int      @default(0) // 词书内顺序
+
+  wordbook   WordBook      @relation(fields: [wordbookId], references: [id], onDelete: Cascade)
+  userWords  UserWord[]
+  attempts   QuizAttempt[]
+
+  @@unique([wordbookId, headword])
+  @@index([wordbookId, rank])
+}
+
+// 用户选择的词书（可多本，isPrimary 标记当前主学词书）
+model UserWordBook {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  wordbookId  Int
+  isPrimary   Boolean  @default(false)
+  dailyNewNum Int      @default(10) // 每日新词数
+  createdAt   DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordbook WordBook @relation(fields: [wordbookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordbookId])
+}
+
+// ============ 学习进度（SM-2） ============
+
+model UserWord {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  wordId         Int
+  status         String    @default("NEW") // NEW | LEARNING | REVIEW | MASTERED
+  easeFactor     Float     @default(2.5)
+  intervalDays   Int       @default(0)
+  repetitions    Int       @default(0)
+  dueDate        DateTime?
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word    Word    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+
+  @@unique([userId, wordId])
+  @@index([userId, dueDate])
+  @@index([userId, status])
+}
+
+// ============ 测验记录 ============
+
+model QuizAttempt {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  wordId    Int
+  quizType  String // en2cn | cn2en | listening | cloze
+  isCorrect Boolean
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word      Word      @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  userWord  UserWord? @relation(fields: [userWordId], references: [id], onDelete: SetNull)
+  userWordId Int?
+
+  @@index([userId, createdAt])
+}
+
+// ============ 阅读文章 ============
+
+model Article {
+  id          Int    @id @default(autoincrement())
+  title       String
+  titleEn     String
+  level       Int // 1-6 级难度
+  contentMd   String
+  translationMd String
+  wordCount   Int    @default(0)
+  coverColor  String @default("#6C5CE7") // 列表卡片渐变色
+  published   Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  readers UserArticle[]
+}
+
+// 用户文章互动：生词本 + 阅读进度
+model UserArticle {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  articleId  Int
+  // 收藏的生词 [{ word: "apple", context: "An apple a day..." }]
+  savedWords Json     @default("[]")
+  readAt     DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+}
+
+// ============ 每日统计 ============
+
+model DailyStat {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  date          DateTime @db.Date
+  newWords      Int      @default(0)
+  reviewedWords Int      @default(0)
+  quizCorrect   Int      @default(0)
+  quizTotal     Int      @default(0)
+  minutes       Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// ============ 打字统计（每用户一行，取历史最佳） ============
+
+model TypingStat {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  bestWpm      Int      @default(0)
+  totalKeys    Int      @default(0)
+  correctKeys  Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

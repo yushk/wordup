@@ -1,0 +1,210 @@
+/* ===== 现代活泼风主题 ===== */
+
+:root {
+  --els-primary: #6c5ce7;
+  --els-primary-light: #a29bfe;
+  --els-green: #00b894;
+  --els-green-light: #55efc4;
+  --els-orange: #e17055;
+  --els-yellow: #fdcb6e;
+  --els-blue: #0984e3;
+  --els-pink: #e84393;
+  --els-bg: #f7f7fb;
+  --els-card: #ffffff;
+  --els-text: #2d3436;
+  --els-text-secondary: #636e72;
+  --els-border: #e8e8f0;
+  --els-radius: 16px;
+  --els-radius-sm: 10px;
+  --els-shadow: 0 4px 20px rgba(108, 92, 231, 0.08);
+  --els-shadow-hover: 0 8px 30px rgba(108, 92, 231, 0.15);
+  --els-gradient: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  --els-gradient-green: linear-gradient(135deg, #00b894 0%, #55efc4 100%);
+  --els-gradient-orange: linear-gradient(135deg, #e17055 0%, #fab1a0 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--els-bg);
+  color: var(--els-text);
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* Element Plus 主题色覆盖 */
+:root {
+  --el-color-primary: var(--els-primary);
+  --el-color-success: var(--els-green);
+  --el-border-radius-base: 8px;
+}
+
+/* 页面容器 */
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  background: var(--els-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.page-subtitle {
+  color: var(--els-text-secondary);
+  margin: 0 0 28px;
+}
+
+/* 通用卡片 */
+.els-card {
+  background: var(--els-card);
+  border-radius: var(--els-radius);
+  box-shadow: var(--els-shadow);
+  padding: 20px;
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+.els-card:hover {
+  box-shadow: var(--els-shadow-hover);
+}
+
+/* 渐变文字按钮 */
+.els-btn-gradient {
+  background: var(--els-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    transform 0.15s;
+}
+
+.els-btn-gradient:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.els-btn-gradient:active {
+  transform: translateY(0);
+}
+
+/* 徽章 */
+.els-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 单词卡片翻转 */
+.flip-scene {
+  perspective: 1200px;
+}
+
+.flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--els-radius);
+  padding: 28px;
+}
+
+.flip-face.back {
+  transform: rotateY(180deg);
+}
+
+/* 阅读文章正文 */
+.article-content p {
+  line-height: 2;
+  font-size: 17px;
+  margin: 0 0 18px;
+}
+
+.article-content .word {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 1px;
+  transition: background 0.15s;
+}
+
+.article-content .word:hover {
+  background: var(--els-primary-light);
+  color: #fff;
+}
+
+.article-content .word.saved {
+  background: var(--els-green-light);
+  color: var(--els-text);
+  font-weight: 600;
+}
+
+/* 入场动画 */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.4s ease both;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 16px 14px 60px;
+  }
+  .page-title {
+    font-size: 24px;
+  }
+}
