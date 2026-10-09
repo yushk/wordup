@@ -1,5 +1,4 @@
 import { get, post, put } from './http'
-import type { Wordbook } from './wordbooks'
 
 export interface AdminUser {
   id: number

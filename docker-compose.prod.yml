@@ -1,0 +1,49 @@
+# WordUp 生产部署 compose
+# 用法（服务器上）：
+#   1. 准备 .env（参考 .env.production.example）
+#   2. docker login registry.cn-beijing.aliyuncs.com
+#   3. docker compose -f docker-compose.prod.yml pull
+#   4. docker compose -f docker-compose.prod.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wordup-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wordup
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: wordup
+    volumes:
+      - wordup_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wordup -d wordup"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # 不对外暴露 5432；需要时再取消注释
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  server:
+    image: registry.cn-beijing.aliyuncs.com/yushk/wordup-server:latest
+    container_name: wordup-server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://wordup:${POSTGRES_PASSWORD}@postgres:5432/wordup?schema=public
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nginx:
+    image: registry.cn-beijing.aliyuncs.com/yushk/wordup-client:latest
+    container_name: wordup-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
+volumes:
+  wordup_pgdata:

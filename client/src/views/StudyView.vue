@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { reviewApi, type StudyCard, type ReviewOverview, type Grade, type ChapterInfo } from '../api/review'
 import { wordbookApi, type MyWordbook, type Wordbook } from '../api/wordbooks'
 import { statsApi } from '../api/stats'
@@ -9,7 +8,6 @@ import { useSpeech } from '../composables/useSpeech'
 import { ElMessage } from 'element-plus'
 
 const { t, locale } = useI18n()
-const router = useRouter()
 const { speak } = useSpeech()
 
 const overview = ref<ReviewOverview | null>(null)
