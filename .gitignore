@@ -7,3 +7,6 @@ dist/
 data/wordbooks/*.json
 !data/wordbooks/.gitkeep
 .playwright-mcp/
+.playwright-mcp/
+*.png
+!client/public/*.png
