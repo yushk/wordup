@@ -67,13 +67,11 @@ export function playWord(text: string, accent: 'us' | 'uk' = 'us'): SpeakHandle 
       // 兜底：有道拉取失败回退 Web Speech（桌面一般有 TTS 引擎）
       fallbackSpeak(text, accent).finally(() => resolve())
     }
-  })
-
-  // 移动端自动播放策略：play() 返回的 reject 在非手势上下文可能出现，
-  // 此时等待用户下一次交互（调用方负责 warmUp/handGesture 重试）
-  audio.play().catch(() => {
-    // 播放被策略拦截：标记错误走 fallback（onerror 不会触发）
-    fallbackSpeak(text, accent).finally(() => resolve())
+    // 移动端自动播放策略：非手势上下文 play() 会被拦（onerror 不触发），
+    // 此时也回退 Web Speech
+    audio.play().catch(() => {
+      fallbackSpeak(text, accent).finally(() => resolve())
+    })
   })
 
   return { stop: () => audio.pause(), done }
