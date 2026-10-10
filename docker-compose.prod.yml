@@ -45,6 +45,15 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      # TLS 证书（宿主机 /opt/wordup/certs/fullchain.pem + privkey.pem）
+      # 首次部署无证书时先用 scripts/init-https.sh 签发
+      - ./certs:/etc/nginx/certs:ro
+      # certbot ACME 验证目录（webroot 模式）
+      - ./certbot/www:/var/www/certbot
+      # Let's Encrypt 续期后 reload nginx
+      - ./certbot/reload:/var/run/reload
     depends_on:
       - server
 

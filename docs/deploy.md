@@ -100,6 +100,31 @@ docker logs -f wordup-server   # 观察种子进度，看到 "API listening" 即
 
 访问 `http://服务器IP/`，用 `ADMIN_EMAIL / ADMIN_PASSWORD` 登录即为管理员（可进 `/admin` 管理后台）。
 
+## 二·五、HTTPS（Let's Encrypt 免费证书，自动续期）
+
+新版 nginx 镜像已内置 443 + HTTP→HTTPS 301 跳转。部署完上面步骤后，在服务器上：
+
+```bash
+cd /opt/wordup
+
+# 1. 先把 scripts/init-https.sh 传上来（或 git pull）
+scp scripts/init-https.sh user@server:/opt/wordup/
+chmod +x init-https.sh
+
+# 2. 一键签发（要求域名已解析到本机、80/443 已放行）
+./init-https.sh wordup.xin you@example.com
+```
+
+脚本会自动：
+1. 生成临时自签证书让 nginx 起得来（解决鸡生蛋问题）
+2. certbot webroot 验证签发真证书（90 天）
+3. 拷贝到 `certs/` 并重启 nginx 加载
+4. 安装 crontab 每天 3:17 自动续期（到期前 30 天才真正续），日志在 `certbot/renew.log`
+
+验证：浏览器开 `https://wordup.xin`，地址栏出现锁；`curl -I http://wordup.xin` 应返回 301。
+
+**注意**：compose 里 nginx 挂载了 `./certs` 和 `./certbot/` 目录，脚本会自动创建。
+
 ## 三、更新版本
 
 ```bash
