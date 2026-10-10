@@ -79,19 +79,20 @@ const OPEN_SOURCE_BOOKS: Record<string, { name: string; nameEn: string; level: s
 async function main() {
   console.log('=== 开始种子数据 ===')
 
-  // 1. ADMIN 账号
-  const adminEmail = 'admin@example.com'
+  // 1. ADMIN 账号（生产：ADMIN_EMAIL/ADMIN_PASSWORD 环境变量注入；缺省用开发账号）
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com'
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123456'
   const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } })
   if (!adminExists) {
     await prisma.user.create({
       data: {
         email: adminEmail,
-        passwordHash: await bcrypt.hash('admin123456', 10),
+        passwordHash: await bcrypt.hash(adminPassword, 10),
         nickname: '管理员',
         role: 'ADMIN',
       },
     })
-    console.log('✓ ADMIN 账号已创建:', adminEmail, '(密码 admin123456)')
+    console.log(`✓ ADMIN 账号已创建: ${adminEmail}`)
   } else {
     console.log('- ADMIN 已存在，跳过')
   }
@@ -114,9 +115,13 @@ async function main() {
   }
   console.log(`✓ 示例文章 ${ARTICLES.length} 篇`)
 
-  // 4. 开源词书（若已下载）
-  const dataDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../data/wordbooks')
-  if (existsSync(dataDir)) {
+  // 4. 开源词书（本地开发读仓库 data/wordbooks；容器内读 /app/data/wordbooks）
+  const candidates = [
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../data/wordbooks'),
+    '/app/data/wordbooks',
+  ]
+  const dataDir = candidates.find((d) => existsSync(d))
+  if (dataDir) {
     for (const file of readdirSync(dataDir)) {
       const meta = OPEN_SOURCE_BOOKS[file]
       if (!meta || !file.endsWith('.json')) continue

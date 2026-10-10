@@ -1,0 +1,10 @@
+# 根 build context（server 镜像用）
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+**/*.log
+client
+docs
+.playwright-mcp
+data/wordbooks/.gitkeep

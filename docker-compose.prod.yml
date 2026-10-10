@@ -31,6 +31,9 @@ services:
     environment:
       DATABASE_URL: postgresql://wordup:${POSTGRES_PASSWORD}@postgres:5432/wordup?schema=public
       JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      # 管理员账号（首次启动自动创建，已存在则跳过；密码必填）
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@wordup.xin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
       PORT: 3000
     depends_on:
       postgres:
