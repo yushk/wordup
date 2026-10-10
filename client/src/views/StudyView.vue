@@ -11,8 +11,13 @@ import { ElMessage } from 'element-plus'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
-const { speak } = useSpeech()
+const { speak, warmUp } = useSpeech()
 const { enabled: soundOn, setEnabled: setSoundOn, keyClick, errorBeep, wordDone } = useSound()
+
+/** 解锁移动端 TTS（必须在用户点击手势内调用一次才有效） */
+function warmUpSpeech() {
+  warmUp()
+}
 
 // 发音口音：us/uk，持久化（useSpeech 默认美音）
 const accent = ref<'us' | 'uk'>((localStorage.getItem('els_accent') as 'us' | 'uk') || 'us')
@@ -281,6 +286,7 @@ async function reportMinutes() {
 
 async function start(m: 'new' | 'review', bookId?: number) {
   mode.value = m
+  warmUpSpeech() // 在点击手势内预热移动端 TTS（否则 iOS/安卓首次无声）
   try {
     // 游客走公开 demo 接口（无进度）；登录用户：新词从选中章取（支持重刷），复习走 SM-2 到期队列
     cards.value = isGuest.value
@@ -367,10 +373,10 @@ async function completeWord(skipped = false) {
     if (!skipped) {
       speakWord(card.headword)
     }
-    // 展示例句与复习间隔提示
+    // 例句已改为拼写期间常显；此处只留「X 天后复习」提示的短暂展示
     lastInterval.value = intervalDays
     if (intervalDays !== null) {
-      await new Promise((resolve) => setTimeout(resolve, 900))
+      await new Promise((resolve) => setTimeout(resolve, 600))
     }
     lastInterval.value = null
 
@@ -401,6 +407,7 @@ function handleChar(ch: string) {
     started.value = true
     startTimer()
   }
+  warmUpSpeech() // 首个按键也是用户手势，兜底解锁 TTS
   const target = currentCard.value.headword
   const expected = target[inputPos.value]
   totalKeys.value++
@@ -659,12 +666,14 @@ async function backToMenu() {
 
           <p v-if="!started && !wordFinishing" class="start-hint">{{ t('study.pressAnyKey') }}</p>
 
-          <template v-if="wordFinishing">
-            <p v-if="lastInterval !== null" class="interval-tip">{{ t('study.intervalInfo', { days: lastInterval }) }}</p>
-            <div v-if="currentCard.exampleSentence && !lastInterval" class="finishing-example">
-              <p class="example-en">“{{ currentCard.exampleSentence }}”</p>
-              <p v-if="currentCard.exampleTranslation" class="example-cn">{{ currentCard.exampleTranslation }}</p>
-            </div>
+          <!-- 例句：拼写期间直接显示（完成提示只在有复习间隔时出现） -->
+          <div v-if="currentCard.exampleSentence" class="finishing-example">
+            <p class="example-en">“{{ currentCard.exampleSentence }}”</p>
+            <p v-if="currentCard.exampleTranslation" class="example-cn">{{ currentCard.exampleTranslation }}</p>
+          </div>
+
+          <template v-if="wordFinishing && lastInterval !== null">
+            <p class="interval-tip">{{ t('study.intervalInfo', { days: lastInterval }) }}</p>
           </template>
 
           <!-- 音标 + 释义（常显） -->
