@@ -4,8 +4,31 @@ import { z } from 'zod'
 import { prisma } from '../lib/db.js'
 import { ok, fail, ApiError, validate } from '../lib/respond.js'
 import { signToken, requireAuth, getCurrentUser } from '../middleware/auth.js'
+import { sendVerificationCode, verifyCode, mailEnabled } from '../services/mailer.js'
 
 const router = Router()
+
+/** POST /api/auth/send-code —— 发送邮箱验证码（找回密码用）
+ *  无论邮箱是否注册都返回成功（防枚举）；仅在邮件服务已配置时工作 */
+router.post(
+  '/send-code',
+  validate({ body: z.object({ email: z.string().email('邮箱格式不正确') }) }),
+  async (req, res, next) => {
+    try {
+      const { email } = req.body
+      if (!mailEnabled()) throw new ApiError('邮件服务未配置，请联系管理员', 503)
+      const user = await prisma.user.findUnique({ where: { email } })
+      if (!user) {
+        // 防邮箱枚举：不提示邮箱不存在，静默成功（也不真发）
+        return ok(res, null)
+      }
+      await sendVerificationCode(email, 'reset')
+      return ok(res, null)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
 
 const registerSchema = z.object({
   email: z.string().email('邮箱格式不正确'),
@@ -55,6 +78,33 @@ router.post('/login', validate({ body: loginSchema }), async (req, res, next) =>
     next(err)
   }
 })
+
+/** POST /api/auth/reset-password —— 验证码校验 + 重置密码 */
+router.post(
+  '/reset-password',
+  validate({
+    body: z.object({
+      email: z.string().email('邮箱格式不正确'),
+      code: z.string().length(6, '验证码为 6 位数字'),
+      password: z.string().min(6, '密码至少 6 位').max(64),
+    }),
+  }),
+  async (req, res, next) => {
+    try {
+      const { email, code, password } = req.body
+      const user = await prisma.user.findUnique({ where: { email } })
+      if (!user) return fail(res, '验证码错误或已过期', 400)
+      if (!verifyCode(email, code)) return fail(res, '验证码错误或已过期', 400)
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await bcrypt.hash(password, 10) },
+      })
+      return ok(res, null)
+    } catch (err) {
+      next(err)
+    }
+  },
+)
 
 /** GET /api/auth/me */
 router.get('/me', requireAuth, async (req, res, next) => {
