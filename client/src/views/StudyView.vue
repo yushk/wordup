@@ -981,6 +981,72 @@ export default { name: 'StudyView' }
   gap: 8px;
 }
 
+/* 选书弹窗移动端：上下堆叠（词书横向滑动选择，章节网格全宽，底部抽屉风格） */
+@media (max-width: 640px) {
+  .picker-mask {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .picker-dialog {
+    flex-direction: column;
+    max-height: 82dvh;
+    width: 100%;
+  }
+
+  .picker-body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .picker-books {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--els-border, #ececf3);
+    padding: 10px;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .picker-book {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 110px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--els-border, #ececf3);
+    border-radius: 10px;
+  }
+
+  .picker-book.active {
+    border-color: transparent;
+  }
+
+  .pb-name {
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+
+  .pb-count {
+    font-size: 10.5px;
+  }
+
+  .pb-joined {
+    display: none; /* 手机上省空间，✓ 标记去掉 */
+  }
+
+  .picker-chapters {
+    padding: 12px 14px;
+  }
+
+  .chapter-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
+}
+
 .chapter-cell {
   border: 1.5px solid var(--els-border, #ececf3);
   background: #fff;
