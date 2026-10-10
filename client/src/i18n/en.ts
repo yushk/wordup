@@ -121,6 +121,11 @@ export default {
     soundOn: 'Mute sounds',
     soundOff: 'Enable sounds',
     accentTip: 'Switch US/UK accent',
+    hideSpelling: 'Dictation: hide spelling',
+    showSpelling: 'Show spelling',
+    practiceAgain: 'Practice Again',
+    dictation: 'Dictation',
+    nextChapterPractice: 'Next Chapter ({n})',
   },
   quiz: {
     title: 'Quiz',

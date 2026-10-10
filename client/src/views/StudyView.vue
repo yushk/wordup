@@ -55,6 +55,16 @@ const wrongCount = ref(0) // 本词错误按键数
 const wordFinishing = ref(false) // 本词完成动画中（禁输入）
 const finishedWord = ref<StudyCard | null>(null) // 右上角刚完成的词
 
+// 默写模式：隐藏拼写靠记忆拼（会话中可随时切，localStorage 持久化）
+const hideSpelling = ref(localStorage.getItem('els_hide_spelling') === 'on')
+function setHideSpelling(v: boolean) {
+  hideSpelling.value = v
+  localStorage.setItem('els_hide_spelling', v ? 'on' : 'off')
+}
+
+// 本次会话已评分的词（重练同一章不重复提交 SM-2 评分，避免间隔虚高）
+const gradedWords = new Set<number>()
+
 // 实时统计
 const elapsedSec = ref(0)
 const correctKeys = ref(0)
@@ -240,6 +250,7 @@ async function start(m: 'new' | 'review', bookId?: number) {
     correctKeys.value = 0
     totalKeys.value = 0
     finishedWord.value = null
+    gradedWords.clear() // 新会话重新计分
     phase.value = 'learning'
     // 等全屏渲染完再读新词
     await nextTick()
@@ -249,6 +260,20 @@ async function start(m: 'new' | 'review', bookId?: number) {
   } catch {
     /* 拦截器已提示 */
   }
+}
+
+/** 完成页：重练本章（保持显示模式）/ 默写本章（隐藏拼写）/ 下一章 */
+async function restartPractice(target: 'same' | 'dictation' | 'next') {
+  if (target === 'same') {
+    // 保持当前拼写显示设置
+  } else if (target === 'dictation') {
+    setHideSpelling(true)
+  } else if (target === 'next' && selectedChapter.value < maxChapter.value) {
+    selectedChapter.value++
+    userPickedChapter.value = true
+    await refreshActiveChapters()
+  }
+  await start('new')
 }
 
 function resetWordState() {
@@ -264,7 +289,7 @@ function gradeFromTyping(): Grade {
   return 'fuzzy' // 有错误但拼完
 }
 
-/** 完成当前词：评分 → 短暂展示 → 下一词/结束 */
+/** 完成当前词：评分（重练已评过的词跳过）→ 短暂展示 → 下一词/结束 */
 async function completeWord(skipped = false) {
   if (!currentCard.value || wordFinishing.value) return
   wordFinishing.value = true
@@ -274,14 +299,24 @@ async function completeWord(skipped = false) {
     wordDone()
   }
   try {
-    const grade: Grade = skipped ? 'forget' : gradeFromTyping()
-    const r = await reviewApi.grade({ wordId: card.wordId, grade })
+    let intervalDays: number | null = null
+    if (gradedWords.has(card.wordId)) {
+      // 重练：已评过分，不再提交（避免重复推动 SM-2 调度/重复计新词数）
+      await new Promise((resolve) => setTimeout(resolve, skipped ? 400 : 700))
+    } else {
+      const grade: Grade = skipped ? 'forget' : gradeFromTyping()
+      const r = await reviewApi.grade({ wordId: card.wordId, grade })
+      gradedWords.add(card.wordId)
+      intervalDays = skipped ? null : r.intervalDays
+    }
     if (!skipped) {
       speakWord(card.headword)
     }
     // 展示例句与复习间隔提示
-    lastInterval.value = skipped ? null : r.intervalDays
-    await new Promise((resolve) => setTimeout(resolve, skipped ? 400 : 900))
+    lastInterval.value = intervalDays
+    if (intervalDays !== null) {
+      await new Promise((resolve) => setTimeout(resolve, 900))
+    }
     lastInterval.value = null
 
     if (currentIndex.value + 1 >= cards.value.length) {
@@ -482,6 +517,12 @@ async function backToMenu() {
           <span class="session-count">{{ currentIndex + 1 }} / {{ cards.length }}</span>
           <button
             class="sound-btn accent-btn"
+            :class="{ active: hideSpelling }"
+            :title="hideSpelling ? t('study.showSpelling') : t('study.hideSpelling')"
+            @click="setHideSpelling(!hideSpelling)"
+          >✍️</button>
+          <button
+            class="sound-btn accent-btn"
             :title="t('study.accentTip')"
             @click="setAccent(accent === 'us' ? 'uk' : 'us')"
           >{{ accent === 'us' ? '🇺🇸' : '🇬🇧' }}</button>
@@ -513,7 +554,10 @@ async function backToMenu() {
                 pending: i === inputPos && started && !wordFinishing,
                 wrong: i === inputPos && wrongFlash,
               }"
-            >{{ ch }}</span>
+            >{{
+              // 默写模式：未输入的字母遮蔽为 •，已拼对部分正常显示；拼完展示期显示完整词
+              hideSpelling && !wordFinishing && i >= inputPos ? '•' : ch
+            }}</span>
           </div>
 
           <p v-if="!started && !wordFinishing" class="start-hint">{{ t('study.pressAnyKey') }}</p>
@@ -587,9 +631,25 @@ async function backToMenu() {
             <div class="stat-label">{{ t('study.accuracy') }}</div>
           </div>
         </div>
-        <div class="done-actions">
-          <RouterLink :to="{ name: 'stats' }" class="els-btn-gradient">{{ t('nav.stats') }}</RouterLink>
-          <RouterLink :to="{ name: 'quiz' }" class="cta-ghost">{{ t('nav.quiz') }}</RouterLink>
+        <!-- 继续练习 -->
+        <div class="next-actions">
+          <button class="els-btn-gradient next-btn" @click="restartPractice('same')">
+            🔁 {{ t('study.practiceAgain') }}
+          </button>
+          <button class="next-btn next-btn-dictation" @click="restartPractice('dictation')">
+            ✍️ {{ t('study.dictation') }}
+          </button>
+          <button
+            v-if="selectedChapter < maxChapter"
+            class="next-btn next-btn-green"
+            @click="restartPractice('next')"
+          >
+            {{ t('study.nextChapterPractice', { n: selectedChapter + 1 }) }} →
+          </button>
+        </div>
+        <div class="done-links">
+          <RouterLink :to="{ name: 'stats' }">{{ t('nav.stats') }}</RouterLink>
+          <RouterLink :to="{ name: 'quiz' }">{{ t('nav.quiz') }}</RouterLink>
         </div>
       </div>
     </template>
@@ -1033,6 +1093,10 @@ export default { name: 'StudyView' }
   margin-left: 10px;
 }
 
+.accent-btn.active {
+  background: var(--els-gradient);
+}
+
 .typing-progress {
   max-width: 760px;
   margin: 10px auto 0;
@@ -1286,6 +1350,57 @@ export default { name: 'StudyView' }
   display: flex;
   gap: 14px;
   justify-content: center;
+}
+
+/* 完成页：继续练习三按钮 */
+.next-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.next-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 26px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+
+.next-btn:hover {
+  transform: translateY(-2px);
+}
+
+.next-btn-dictation {
+  background: #fff;
+  border: 2px solid var(--els-primary);
+  color: var(--els-primary);
+}
+
+.next-btn-green {
+  background: var(--els-gradient-green);
+  color: #fff;
+}
+
+.done-links {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.done-links a {
+  color: var(--els-text-secondary);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.done-links a:hover {
+  color: var(--els-primary);
 }
 
 .done-actions .els-btn-gradient,

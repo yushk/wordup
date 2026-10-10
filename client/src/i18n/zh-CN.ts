@@ -121,6 +121,11 @@ export default {
     soundOn: '关闭音效',
     soundOff: '开启音效',
     accentTip: '切换美音/英音',
+    hideSpelling: '默写模式：隐藏拼写',
+    showSpelling: '显示拼写',
+    practiceAgain: '再练一次',
+    dictation: '默写本章',
+    nextChapterPractice: '下一章（第 {n} 章）',
   },
   quiz: {
     title: '测验练习',
