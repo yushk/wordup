@@ -4,22 +4,66 @@
 
 | 镜像 | 内容 |
 |---|---|
-| `wordup-server` | Node 20 + tsx 运行后端，启动时自动 `prisma migrate deploy` |
+| `wordup-server` | Node 20 + tsx 运行后端；内置 8 本词书，启动时自动 `migrate deploy` + seed（幂等导入词书/创建管理员） |
 | `wordup-client` | Vue build 产物 + nginx（静态托管 + `/api` 反代 server:3000） |
 
 ## 一、本地构建并推送镜像
 
+在**仓库根目录**执行（server 的 build context 是仓库根——要打包 `data/wordbooks/`，注意 `-f server/Dockerfile` 和结尾的 `.`）：
+
 ```bash
-cd server
-docker build -t registry.cn-beijing.aliyuncs.com/yushk/wordup-server:latest .
+cd <仓库根目录>
 
-cd ../client
-docker build -t registry.cn-beijing.aliyuncs.com/yushk/wordup-client:latest .
+# 1. 登录阿里云 ACR（只需一次，凭证存在本地）
+docker login registry.cn-beijing.aliyuncs.com
 
-docker login registry.cn-beijing.aliyuncs.com   # 阿里云 ACR 用户名/密码
+# 2. 构建后端镜像（context 是仓库根，不是 server/！）
+docker build -f server/Dockerfile \
+  -t registry.cn-beijing.aliyuncs.com/yushk/wordup-server:latest \
+  .
+
+# 3. 构建前端镜像（context 是 client/）
+docker build -f client/Dockerfile \
+  -t registry.cn-beijing.aliyuncs.com/yushk/wordup-client:latest \
+  client/
+
+# 4. 推送
 docker push registry.cn-beijing.aliyuncs.com/yushk/wordup-server:latest
 docker push registry.cn-beijing.aliyuncs.com/yushk/wordup-client:latest
 ```
+
+### 版本 tag（可选，建议发布时用）
+
+`latest` 之外同时打版本号，方便回滚：
+
+```bash
+VERSION=v1.1.0
+docker build -f server/Dockerfile -t registry.cn-beijing.aliyuncs.com/yushk/wordup-server:$VERSION .
+docker build -f client/Dockerfile -t registry.cn-beijing.aliyuncs.com/yushk/wordup-client:$VERSION client/
+docker push registry.cn-beijing.aliyuncs.com/yushk/wordup-server:$VERSION
+docker push registry.cn-beijing.aliyuncs.com/yushk/wordup-client:$VERSION
+```
+
+回滚时改 `docker-compose.prod.yml` 里的镜像 tag（或 `docker tag` 后 `up -d`）。
+
+### 一键脚本
+
+```bash
+# 保存为 deploy.sh，chmod +x deploy.sh，以后发版只需 ./deploy.sh [版本号]
+#!/usr/bin/env bash
+set -e
+REG=registry.cn-beijing.aliyuncs.com/yushk
+TAG=${1:-latest}
+echo "==> 构建 server:$TAG"
+docker build -f server/Dockerfile -t $REG/wordup-server:$TAG .
+echo "==> 构建 client:$TAG"
+docker build -f client/Dockerfile -t $REG/wordup-client:$TAG client/
+echo "==> 推送"
+docker push $REG/wordup-server:$TAG
+docker push $REG/wordup-client:$TAG
+echo "==> 完成。服务器上执行：docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d"
+```
+
 
 ## 二、服务器部署
 
@@ -33,16 +77,19 @@ scp docker-compose.prod.yml .env.production.example user@server:/opt/wordup/
 # 2. 服务器上准备 .env
 cd /opt/wordup
 cp .env.production.example .env
-vim .env   # 填入强密码的 POSTGRES_PASSWORD 和随机 JWT_SECRET
-# 生成建议：openssl rand -base64 24 / 48
+vim .env   # 填 POSTGRES_PASSWORD / JWT_SECRET / ADMIN_PASSWORD（生成建议：openssl rand -base64 24 / 48）
 
 # 3. 登录镜像仓库并拉起
 docker login registry.cn-beijing.aliyuncs.com
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
+
+# 4. 首次启动会自动完成（幂等，重启安全）：
+#    建表迁移 → 创建管理员（ADMIN_EMAIL/ADMIN_PASSWORD）→ 导入 8 本内置词书（20589 词）+ 3 篇示例文章
+docker logs -f wordup-server   # 观察种子进度，看到 "API listening" 即就绪
 ```
 
-访问 `http://服务器IP/` 即可。首个注册用户可用管理后台导入词书；或本地导出词书 SQL 后灌入。
+访问 `http://服务器IP/`，用 `ADMIN_EMAIL / ADMIN_PASSWORD` 登录即为管理员（可进 `/admin` 管理后台）。
 
 ## 三、更新版本
 
