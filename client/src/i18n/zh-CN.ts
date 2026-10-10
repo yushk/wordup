@@ -118,6 +118,8 @@ export default {
     chaptersUnit: '章',
     chapterMastered: '已学完',
     chapterNew: '未学',
+    soundOn: '关闭音效',
+    soundOff: '开启音效',
   },
   quiz: {
     title: '测验练习',

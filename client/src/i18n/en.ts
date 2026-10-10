@@ -118,6 +118,8 @@ export default {
     chaptersUnit: 'chapters',
     chapterMastered: 'Done',
     chapterNew: 'New',
+    soundOn: 'Mute sounds',
+    soundOff: 'Enable sounds',
   },
   quiz: {
     title: 'Quiz',

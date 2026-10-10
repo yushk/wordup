@@ -5,10 +5,12 @@ import { reviewApi, type StudyCard, type ReviewOverview, type Grade, type Chapte
 import { wordbookApi, type MyWordbook, type Wordbook } from '../api/wordbooks'
 import { statsApi } from '../api/stats'
 import { useSpeech } from '../composables/useSpeech'
+import { useSound } from '../composables/useSound'
 import { ElMessage } from 'element-plus'
 
 const { t, locale } = useI18n()
 const { speak } = useSpeech()
+const { enabled: soundOn, setEnabled: setSoundOn, keyClick, errorBeep, wordDone } = useSound()
 
 const overview = ref<ReviewOverview | null>(null)
 const loading = ref(true)
@@ -254,6 +256,9 @@ async function completeWord(skipped = false) {
   wordFinishing.value = true
   const card = currentCard.value
   finishedWord.value = card
+  if (!skipped) {
+    wordDone()
+  }
   try {
     const grade: Grade = skipped ? 'forget' : gradeFromTyping()
     const r = await reviewApi.grade({ wordId: card.wordId, grade })
@@ -310,6 +315,7 @@ function onKeydown(e: KeyboardEvent) {
   totalKeys.value++
   if (e.key.toLowerCase() === expected?.toLowerCase()) {
     correctKeys.value++
+    keyClick()
     wrongFlash.value = false
     inputPos.value++
     if (inputPos.value >= target.length) {
@@ -317,6 +323,7 @@ function onKeydown(e: KeyboardEvent) {
     }
   } else {
     wrongCount.value++
+    errorBeep()
     wrongFlash.value = true
     setTimeout(() => (wrongFlash.value = false), 300)
   }
@@ -450,7 +457,7 @@ async function backToMenu() {
     <!-- 学习态：沉浸打字会话（全屏覆盖） -->
     <Teleport to="body">
       <div v-if="phase === 'learning' && currentCard" class="typing-overlay">
-        <!-- 顶栏：返回 + 进度 -->
+        <!-- 顶栏：返回 + 进度 + 音效开关 -->
         <div class="typing-top">
           <button class="back-btn" @click="backToMenu">←</button>
           <span class="session-mode">
@@ -459,6 +466,11 @@ async function backToMenu() {
               : t('study.reviews') }}
           </span>
           <span class="session-count">{{ currentIndex + 1 }} / {{ cards.length }}</span>
+          <button
+            class="sound-btn"
+            :title="soundOn ? t('study.soundOn') : t('study.soundOff')"
+            @click="setSoundOn(!soundOn)"
+          >{{ soundOn ? '🔊' : '🔇' }}</button>
         </div>
         <el-progress :percentage="progressPercent" :stroke-width="6" :show-text="false" class="typing-progress" />
 
@@ -979,6 +991,22 @@ export default { name: 'StudyView' }
   margin-left: auto;
   color: var(--els-text-secondary);
   font-weight: 600;
+}
+
+.sound-btn {
+  border: none;
+  background: #fff;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--els-shadow);
+  transition: transform 0.12s;
+}
+
+.sound-btn:hover {
+  transform: scale(1.1);
 }
 
 .typing-progress {
