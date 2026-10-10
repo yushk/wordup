@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# WordUp 一键构建推送镜像到阿里云 ACR
+# 用法：
+#   ./deploy.sh            # 构建 latest
+#   ./deploy.sh v1.2.0     # 构建指定版本 tag
+#   ./deploy.sh v1.2.0 --skip-build   # 只推送已存在的镜像
+set -e
+cd "$(dirname "$0")"   # 切到仓库根（脚本在根目录）
+
+REG=registry.cn-beijing.aliyuncs.com/yushk
+TAG=${1:-latest}
+SKIP_BUILD=false
+[[ "${2:-}" == "--skip-build" ]] && SKIP_BUILD=true
+
+echo "==> tag: $TAG"
+
+if [ "$SKIP_BUILD" = false ]; then
+  echo "==> 构建 server（build context = 仓库根）"
+  docker build -f server/Dockerfile -t $REG/wordup-server:$TAG .
+  echo "==> 构建 client"
+  docker build -f client/Dockerfile -t $REG/wordup-client:$TAG client/
+fi
+
+echo "==> 推送"
+docker push $REG/wordup-server:$TAG
+docker push $REG/wordup-client:$TAG
+
+echo ""
+echo "✓ 完成。服务器上更新："
+echo "  docker compose -f docker-compose.prod.yml pull"
+echo "  docker compose -f docker-compose.prod.yml up -d"

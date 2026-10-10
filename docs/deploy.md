@@ -48,8 +48,17 @@ docker push registry.cn-beijing.aliyuncs.com/yushk/wordup-client:$VERSION
 
 ### 一键脚本
 
+仓库根目录已带 `deploy.sh`（Git Bash / Linux / macOS 可直接跑）：
+
 ```bash
-# 保存为 deploy.sh，chmod +x deploy.sh，以后发版只需 ./deploy.sh [版本号]
+./deploy.sh              # 构建 latest 并推送
+./deploy.sh v1.2.0       # 构建版本 tag 并推送
+./deploy.sh v1.2.0 --skip-build   # 跳过构建只推送本地已有镜像
+```
+
+脚本内容（等价的手动命令就是上面两节）：
+
+```bash
 #!/usr/bin/env bash
 set -e
 REG=registry.cn-beijing.aliyuncs.com/yushk
