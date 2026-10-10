@@ -12,9 +12,9 @@ TAG=${1:-latest}
 SKIP_BUILD=false
 [[ "${2:-}" == "--skip-build" ]] && SKIP_BUILD=true
 
-# TAG 合法性：字母数字 . _ -（防误传 --help 之类）
-if [[ ! "$TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
-  echo "错误：非法 tag '$TAG'（只允许字母数字 . _ -）" >&2
+# TAG 合法性：字母数字 . _ - 开头（防误传 --help 之类）
+if [[ "$TAG" == -* ]] || [[ ! "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "错误：非法 tag '$TAG'（须以字母数字开头，只含字母数字 . _ -）" >&2
   exit 1
 fi
 
