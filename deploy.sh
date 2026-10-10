@@ -30,6 +30,13 @@ fi
 echo "==> 推送"
 docker push $REG/wordup-server:$TAG
 docker push $REG/wordup-client:$TAG
+# compose 引用 latest：同步更新（版本 tag 与 latest 同源，避免二者漂移）
+if [ "$TAG" != "latest" ]; then
+  docker tag $REG/wordup-server:$TAG $REG/wordup-server:latest
+  docker tag $REG/wordup-client:$TAG $REG/wordup-client:latest
+  docker push $REG/wordup-server:latest
+  docker push $REG/wordup-client:latest
+fi
 
 echo ""
 echo "✓ 完成。服务器上更新："
