@@ -81,7 +81,7 @@ export function playWord(text: string, accent: 'us' | 'uk' = 'us'): SpeakHandle 
 
 // ===== Web Speech 兜底（仅当有道接口不可用时） =====
 
-function fallbackSpeak(text: string, accent: 'us' | 'uk'): Promise<void> {
+function fallbackSpeak(text: string, accent: 'us' | 'uk', rate = 0.95): Promise<void> {
   return new Promise((resolve) => {
     if (typeof speechSynthesis === 'undefined') {
       resolve()
@@ -95,7 +95,7 @@ function fallbackSpeak(text: string, accent: 'us' | 'uk'): Promise<void> {
       const voices = speechSynthesis.getVoices()
       const voice = voices.find((v) => v.lang === utter.lang) ?? voices.find((v) => v.lang.startsWith('en'))
       if (voice) utter.voice = voice
-      utter.rate = 0.95
+      utter.rate = rate
       utter.onend = () => resolve()
       utter.onerror = () => resolve()
       speechSynthesis.speak(utter)
@@ -114,9 +114,11 @@ export function useSpeech() {
 
   function speak(text: string, accent: 'us' | 'uk' = 'us', rate = 0.95): Promise<void> {
     speaking.value = true
-    // 有道接口不支持语速；跟读慢速场景（rate<1）走 Web Speech 变速
-    // ——桌面 TTS 引擎普遍可用；移动端跟读页用户本来就戴着耳机练口语，
-    //    且有声优先于慢速，正常语速的真人发音优于无声的慢速机器音
+    // 有道真人音频不支持变速；慢速跟读场景（rate<0.9）直接走 Web Speech 变速——
+    // 跟读页是桌面为主的使用场景；移动端以「有声的正常语速真人音」优先于无声慢速
+    if (rate < 0.9) {
+      return fallbackSpeak(text, accent, rate).finally(() => (speaking.value = false))
+    }
     const handle = playWord(text, accent)
     return handle.done.finally(() => (speaking.value = false))
   }
