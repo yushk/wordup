@@ -7,7 +7,7 @@ import { addDailyStat } from '../services/stats.js'
 
 const router = Router()
 
-/** GET /api/stats/leaderboard?type=today|streak|total|wpm —— 挑战榜单（公开，前 10 名） */
+/** GET /api/stats/leaderboard?type=today|streak|total|wpm —— 挑战榜单（公开，前 10 名，不含管理员） */
 router.get(
   '/leaderboard',
   validate({ query: z.object({ type: z.enum(['today', 'streak', 'total', 'wpm']).default('today') }) }),
@@ -20,7 +20,7 @@ router.get(
         const start = new Date()
         start.setHours(0, 0, 0, 0)
         const stats = await prisma.dailyStat.findMany({
-          where: { date: { gte: start } },
+          where: { date: { gte: start }, user: { role: 'USER' } },
           include: { user: { select: { nickname: true } } },
           take: 200,
         })
@@ -32,7 +32,7 @@ router.get(
       } else if (type === 'total') {
         const grouped = await prisma.userWord.groupBy({
           by: ['userId'],
-          where: { repetitions: { gt: 0 } },
+          where: { repetitions: { gt: 0 }, user: { role: 'USER' } },
           _count: { _all: true },
         })
         const userIds = grouped.map((g) => g.userId)
@@ -47,16 +47,19 @@ router.get(
           .slice(0, 10)
       } else if (type === 'wpm') {
         const stats = await prisma.typingStat.findMany({
-          where: { bestWpm: { gt: 0 } },
+          where: { bestWpm: { gt: 0 }, user: { role: 'USER' } },
           include: { user: { select: { nickname: true } } },
           orderBy: { bestWpm: 'desc' },
           take: 10,
         })
         rows = stats.map((s) => ({ nickname: s.user.nickname, value: s.bestWpm }))
       } else {
-        // streak：所有用户的连续打卡天数
+        // streak：所有普通用户的连续打卡天数
         const stats = await prisma.dailyStat.findMany({
-          where: { OR: [{ newWords: { gt: 0 } }, { reviewedWords: { gt: 0 } }, { quizTotal: { gt: 0 } }] },
+          where: {
+            OR: [{ newWords: { gt: 0 } }, { reviewedWords: { gt: 0 } }, { quizTotal: { gt: 0 } }],
+            user: { role: 'USER' },
+          },
           select: { userId: true, date: true },
         })
         const byUser = new Map<number, Set<string>>()
