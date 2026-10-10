@@ -307,6 +307,8 @@ async function start(m: 'new' | 'review', bookId?: number) {
     phase.value = 'learning'
     // 等全屏渲染完再读新词
     await nextTick()
+    // 移动端：聚焦隐藏 input 拉起软键盘（桌面端无影响）
+    focusHiddenInput()
     if (currentCard.value) {
       speakWord(currentCard.value.headword)
     }
@@ -392,6 +394,48 @@ async function completeWord(skipped = false) {
 
 const lastInterval = ref<number | null>(null)
 
+/** 处理一个输入字符（物理键盘 keydown 和手机软键盘 input 双通道共用） */
+function handleChar(ch: string) {
+  if (phase.value !== 'learning' || !currentCard.value || wordFinishing.value) return
+  if (!started.value) {
+    started.value = true
+    startTimer()
+  }
+  const target = currentCard.value.headword
+  const expected = target[inputPos.value]
+  totalKeys.value++
+  if (ch.toLowerCase() === expected?.toLowerCase()) {
+    correctKeys.value++
+    keyClick()
+    wrongFlash.value = false
+    inputPos.value++
+    if (inputPos.value >= target.length) {
+      completeWord(false)
+    }
+  } else {
+    wrongCount.value++
+    errorBeep()
+    wrongFlash.value = true
+    setTimeout(() => (wrongFlash.value = false), 300)
+  }
+}
+
+/** 手机软键盘：隐藏 input 的 input 事件（中文输入法/联想词都能拿到字母） */
+const hiddenInput = ref<HTMLInputElement | null>(null)
+function onHiddenInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  const text = el.value
+  el.value = '' // 立即清空，持续接收
+  for (const ch of text) {
+    if (/^[a-zA-Z]$/.test(ch)) handleChar(ch)
+  }
+}
+
+/** 触摸设备上点会话区域拉起软键盘 */
+function focusHiddenInput() {
+  hiddenInput.value?.focus({ preventScroll: true })
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (phase.value !== 'learning' || !currentCard.value) return
   // 修饰键组合放行给浏览器（如 Cmd+R 刷新）
@@ -406,29 +450,7 @@ function onKeydown(e: KeyboardEvent) {
   // 只接受单个英文字符
   if (!/^[a-zA-Z]$/.test(e.key)) return
   e.preventDefault()
-
-  if (!started.value) {
-    started.value = true
-    startTimer()
-  }
-
-  const target = currentCard.value.headword
-  const expected = target[inputPos.value]
-  totalKeys.value++
-  if (e.key.toLowerCase() === expected?.toLowerCase()) {
-    correctKeys.value++
-    keyClick()
-    wrongFlash.value = false
-    inputPos.value++
-    if (inputPos.value >= target.length) {
-      completeWord(false)
-    }
-  } else {
-    wrongCount.value++
-    errorBeep()
-    wrongFlash.value = true
-    setTimeout(() => (wrongFlash.value = false), 300)
-  }
+  handleChar(e.key)
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -606,7 +628,19 @@ async function backToMenu() {
         </transition>
 
         <!-- 中央：单词 + 输入 -->
-        <div class="typing-main">
+        <!-- 移动端软键盘：隐藏 input，聚焦拉起系统键盘（桌面端无感） -->
+        <input
+          ref="hiddenInput"
+          class="hidden-input"
+          type="text"
+          autocapitalize="off"
+          autocorrect="off"
+          autocomplete="off"
+          spellcheck="false"
+          :aria-label="t('study.pressAnyKey')"
+          @input="onHiddenInput"
+        />
+        <div class="typing-main" @click="focusHiddenInput">
           <div class="word-letters" :class="{ 'shake-wrong': wrongFlash }">
             <span
               v-for="(ch, i) in currentCard.headword"
@@ -1151,6 +1185,31 @@ export default { name: 'StudyView' }
     var(--els-bg, #f5f6fa);
   display: flex;
   flex-direction: column;
+  /* 移动端软键盘弹出时允许压缩，内容不被顶出屏幕 */
+  height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+/* 小屏（手机）紧凑布局 */
+@media (max-width: 640px) {
+  .typing-top {
+    padding: 12px 16px 0;
+  }
+  .typing-main {
+    padding: 0 14px;
+  }
+  .word-letters {
+    font-size: clamp(34px, 11vw, 48px);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stat-bar {
+    gap: 18px;
+    padding: 10px 16px;
+  }
+  .stat-num {
+    font-size: 16px;
+  }
 }
 
 .typing-top {
@@ -1242,6 +1301,23 @@ export default { name: 'StudyView' }
   align-items: center;
   justify-content: center;
   padding: 0 24px;
+  cursor: text; /* 暗示可输入 */
+}
+
+/* 隐藏输入框：透明、不占位，但保持可聚焦以拉起移动端软键盘 */
+.hidden-input {
+  position: absolute;
+  opacity: 0;
+  height: 1px;
+  width: 1px;
+  top: 50%;
+  left: 50%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  z-index: -1;
 }
 
 .word-letters {
