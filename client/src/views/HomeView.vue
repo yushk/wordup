@@ -65,7 +65,7 @@ const bookColors = ['var(--els-gradient)', 'var(--els-gradient-green)', 'var(--e
         <h1 class="hero-title fade-up">{{ t('home.heroTitle') }}</h1>
         <p class="hero-sub fade-up">{{ t('home.heroSubtitle') }}</p>
         <div class="hero-cta fade-up">
-          <RouterLink v-if="!auth.isLoggedIn" :to="{ name: 'register' }" class="els-btn-gradient cta-main">
+          <RouterLink v-if="!auth.isLoggedIn" :to="{ name: 'study' }" class="els-btn-gradient cta-main">
             {{ t('home.ctaStart') }} →
           </RouterLink>
           <RouterLink v-else :to="{ name: 'study' }" class="els-btn-gradient cta-main">

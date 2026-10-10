@@ -25,7 +25,7 @@ const router = createRouter({
       path: '/study',
       name: 'study',
       component: () => import('../views/StudyView.vue'),
-      meta: { requiresAuth: true },
+      // 无 requiresAuth：游客免登录体验（组件内 isGuest 分支处理）
     },
     {
       path: '/wordbooks',

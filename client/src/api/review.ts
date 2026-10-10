@@ -52,6 +52,12 @@ export const reviewApi = {
     }),
   chapters: (wordbookId?: number) =>
     get<ChaptersResponse>('/review/chapters', wordbookId ? { wordbookId } : undefined),
+  /** 游客免登录体验：公开取某章词卡（缺省四级第 1 章，无进度数据） */
+  demo: (chapter?: number, wordbookId?: number) =>
+    get<StudyCard[]>('/review/demo', {
+      ...(chapter ? { chapter } : {}),
+      ...(wordbookId ? { wordbookId } : {}),
+    }),
   grade: (data: { wordId: number; grade: Grade }) =>
     post<{ status: string; intervalDays: number; dueDate: string }>('/review/grade', data),
 }

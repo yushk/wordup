@@ -7,6 +7,53 @@ import { sm2, GRADING } from '../services/sm2.js'
 import { addDailyStat } from '../services/stats.js'
 
 const router = Router()
+
+/** GET /api/review/demo?chapter=&wordbookId= —— 游客免登录体验（公开）
+ *  返回指定章的词卡（缺省四级第 1 章），无用户进度数据 */
+router.get(
+  '/demo',
+  validate({
+    query: z.object({
+      chapter: z.coerce.number().int().min(1).optional(),
+      wordbookId: z.coerce.number().int().positive().optional(),
+    }),
+  }),
+  async (req, res, next) => {
+    try {
+      const { chapter, wordbookId } = req.query as unknown as { chapter?: number; wordbookId?: number }
+      let bookId = wordbookId
+      if (!bookId) {
+        const cet4 = await prisma.wordBook.findUnique({ where: { level: 'cet4' } })
+        bookId = cet4?.id ?? (await prisma.wordBook.findFirst({ orderBy: { sortOrder: 'asc' } }))?.id
+      }
+      if (!bookId) throw new ApiError('暂无词书数据', 404)
+      const ch = chapter ?? 1
+      const rankStart = (ch - 1) * CHAPTER_SIZE
+      const words = await prisma.word.findMany({
+        where: { wordbookId: bookId, rank: { gte: rankStart, lt: rankStart + CHAPTER_SIZE } },
+        orderBy: { rank: 'asc' },
+        take: CHAPTER_SIZE,
+      })
+      return ok(
+        res,
+        words.map((w) => ({
+          wordId: w.id,
+          userWordId: null,
+          headword: w.headword,
+          phoneticUs: w.phoneticUs,
+          phoneticUk: w.phoneticUk,
+          definitions: w.definitions,
+          exampleSentence: w.exampleSentence,
+          exampleTranslation: w.exampleTranslation,
+          isNew: true,
+        })),
+      )
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 router.use(requireAuth)
 
 /** 今天零点（本地时区） */

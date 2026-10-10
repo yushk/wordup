@@ -4,11 +4,13 @@ import { useI18n } from 'vue-i18n'
 import { reviewApi, type StudyCard, type ReviewOverview, type Grade, type ChapterInfo } from '../api/review'
 import { wordbookApi, type MyWordbook, type Wordbook } from '../api/wordbooks'
 import { statsApi } from '../api/stats'
+import { useAuthStore } from '../stores/auth'
 import { useSpeech } from '../composables/useSpeech'
 import { useSound } from '../composables/useSound'
 import { ElMessage } from 'element-plus'
 
 const { t, locale } = useI18n()
+const auth = useAuthStore()
 const { speak } = useSpeech()
 const { enabled: soundOn, setEnabled: setSoundOn, keyClick, errorBeep, wordDone } = useSound()
 
@@ -80,7 +82,21 @@ const primaryBook = computed(() => myBooks.value.find((b) => b.isPrimary) ?? nul
 const selectedChapterInfo = computed(
   () => chaptersInfo.value.find((c) => c.chapter === selectedChapter.value) ?? null,
 )
-const maxChapter = computed(() => Math.max(1, chaptersInfo.value.length))
+
+/** 游客态：无登录，默认体验四级（没有则第一本）第 1 章 */
+const guestBook = computed<Wordbook | null>(
+  () => allBooks.value.find((b) => b.level === 'cet4') ?? allBooks.value[0] ?? null,
+)
+const isGuest = computed(() => !auth.isLoggedIn)
+
+/** 游客态章节数按词书词数算（chaptersInfo 为空） */
+const guestMaxChapter = computed(() =>
+  guestBook.value ? Math.max(1, Math.ceil(guestBook.value.wordCount / CHAPTER_SIZE_FALLBACK)) : 1,
+)
+
+const maxChapter = computed(() =>
+  chaptersInfo.value.length > 0 ? Math.max(1, chaptersInfo.value.length) : guestMaxChapter.value,
+)
 
 /** 当前选中章里还有多少新词 */
 const chapterNewCount = computed(
@@ -98,6 +114,19 @@ const pickerBook = computed(
 async function loadOverview() {
   loading.value = true
   try {
+    if (isGuest.value) {
+      // 游客：只取公开的词书列表，进度数据全无，默认第 1 章
+      const all = await wordbookApi.list()
+      allBooks.value = all
+      myBooks.value = []
+      chaptersInfo.value = []
+      currentChapter.value = 1
+      if (!userPickedChapter.value) {
+        selectedChapter.value = 1
+      }
+      overview.value = { joined: false, newDue: CHAPTER_SIZE_FALLBACK, reviewDue: 0, currentChapter: 1 }
+      return
+    }
     const [ov, ch, mine, all] = await Promise.all([
       reviewApi.overview(),
       reviewApi.chapters(),
@@ -118,6 +147,7 @@ async function loadOverview() {
   }
 }
 const userPickedChapter = ref(false)
+const CHAPTER_SIZE_FALLBACK = 20
 
 onMounted(loadOverview)
 
@@ -136,8 +166,9 @@ function nextChapter() {
   }
 }
 
-/** 切章后刷新该章的已学统计（用于任务卡显示） */
+/** 切章后刷新该章的已学统计（用于任务卡显示）；游客无进度数据 */
 async function refreshActiveChapters() {
+  if (isGuest.value) return
   const ch = await reviewApi.chapters()
   chaptersInfo.value = ch.chapters
   currentChapter.value = ch.current
@@ -146,7 +177,9 @@ async function refreshActiveChapters() {
 /** 打开选书选章弹窗（Qwerty 模式：词书列表 + 章节网格） */
 async function openPicker() {
   pickerOpen.value = true
-  pickerBookId.value = primaryBook.value?.wordbook.id ?? null
+  pickerBookId.value = isGuest.value
+    ? guestBook.value?.id ?? null
+    : primaryBook.value?.wordbook.id ?? null
   await loadPickerChapters()
 }
 
@@ -154,6 +187,18 @@ async function loadPickerChapters() {
   if (!pickerBookId.value) return
   pickerLoading.value = true
   try {
+    if (isGuest.value) {
+      // 游客无进度数据：按词书词数本地生成章节网格（全部未学）
+      const book = allBooks.value.find((b) => b.id === pickerBookId.value)
+      const total = book?.wordCount ?? 0
+      const chapters = Math.max(1, Math.ceil(total / CHAPTER_SIZE_FALLBACK))
+      pickerChapters.value = Array.from({ length: chapters }, (_, i) => ({
+        chapter: i + 1,
+        totalWords: i + 1 === chapters ? total - (chapters - 1) * CHAPTER_SIZE_FALLBACK : CHAPTER_SIZE_FALLBACK,
+        learnedWords: 0,
+      }))
+      return
+    }
     const ch = await reviewApi.chapters(pickerBookId.value)
     pickerChapters.value = ch.chapters
   } finally {
@@ -169,11 +214,18 @@ function pickBook(b: Wordbook) {
 }
 
 /** 弹窗内点章节：确定学习目标并直接开始
- *  未加入的词书先自动加入并设为主词书 */
+ *  游客直接体验该章；登录用户未加入的词书先自动加入并设为主词书 */
 async function pickChapter(ch: number) {
   pickerOpen.value = false
   const bookId = pickerBookId.value
   if (!bookId) return
+  userPickedChapter.value = true
+  selectedChapter.value = ch
+  if (isGuest.value) {
+    // 游客：无账号操作，直接体验选中章
+    await start('new', bookId)
+    return
+  }
   const joined = myBooks.value.some((m) => m.wordbook.id === bookId)
   if (!joined) {
     // 首次选的书加入并设为主（join 只在无词书时自动设主）
@@ -182,8 +234,6 @@ async function pickChapter(ch: number) {
   } else if (primaryBook.value?.wordbook.id !== bookId) {
     await wordbookApi.setPrimary(bookId)
   }
-  userPickedChapter.value = true
-  selectedChapter.value = ch
   await loadOverview()
   // 直接开始本章学习（带 wordbookId，确保取对书）
   await start('new', bookId)
@@ -213,8 +263,9 @@ function stopTimer() {
   }
 }
 
-/** 上报本次会话：时长（分钟）+ 打字统计（更新最佳 WPM） */
+/** 上报本次会话：时长（分钟）+ 打字统计（更新最佳 WPM）；游客不上传 */
 async function reportMinutes() {
+  if (isGuest.value) return
   const minutes = Math.round(elapsedSec.value / 60)
   const hasKeys = totalKeys.value > 0
   if (minutes <= 0 && !hasKeys) return
@@ -231,13 +282,15 @@ async function reportMinutes() {
 async function start(m: 'new' | 'review', bookId?: number) {
   mode.value = m
   try {
-    // 新词从选中章取（该章全部词，支持重刷）；复习走 SM-2 到期队列
-    cards.value = await reviewApi.queue(
-      m,
-      20,
-      m === 'new' ? selectedChapter.value : undefined,
-      m === 'new' ? bookId : undefined,
-    )
+    // 游客走公开 demo 接口（无进度）；登录用户：新词从选中章取（支持重刷），复习走 SM-2 到期队列
+    cards.value = isGuest.value
+      ? await reviewApi.demo(m === 'new' ? selectedChapter.value : 1, bookId ?? guestBook.value?.id)
+      : await reviewApi.queue(
+          m,
+          20,
+          m === 'new' ? selectedChapter.value : undefined,
+          m === 'new' ? bookId : undefined,
+        )
     if (cards.value.length === 0) {
       ElMessage.info(m === 'review' ? t('study.noReview') : t('study.allDone'))
       await loadOverview()
@@ -300,8 +353,8 @@ async function completeWord(skipped = false) {
   }
   try {
     let intervalDays: number | null = null
-    if (gradedWords.has(card.wordId)) {
-      // 重练：已评过分，不再提交（避免重复推动 SM-2 调度/重复计新词数）
+    if (isGuest.value || gradedWords.has(card.wordId)) {
+      // 游客无账号 / 重练已评过：不提交评分（游客不推动 SM-2，重练避免间隔虚高）
       await new Promise((resolve) => setTimeout(resolve, skipped ? 400 : 700))
     } else {
       const grade: Grade = skipped ? 'forget' : gradeFromTyping()
@@ -399,11 +452,17 @@ async function backToMenu() {
       <h1 class="page-title">{{ t('study.title') }}</h1>
       <p class="page-subtitle">{{ new Date().toLocaleDateString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' }) }}</p>
 
-      <template v-if="overview && overview.joined">
+      <template v-if="(overview && overview.joined) || isGuest">
+        <!-- 游客体验提示条 -->
+        <div v-if="isGuest" class="guest-banner fade-up">
+          {{ t('study.guestMode') }}
+          <RouterLink :to="{ name: 'register' }" class="guest-signup">{{ t('study.signUpToSave') }} →</RouterLink>
+        </div>
+
         <!-- 章节切换行：词书 ▾（点击弹选书选章）| ◀ 第 N 章 ▶ -->
         <div class="chapter-bar fade-up">
           <div class="book-select" @click="openPicker">
-            <span class="book-name">{{ primaryBook?.wordbook.name }}</span>
+            <span class="book-name">{{ isGuest ? guestBook?.name : primaryBook?.wordbook.name }}</span>
             <span class="book-caret">▾</span>
           </div>
           <div class="chapter-switch">
@@ -416,25 +475,29 @@ async function backToMenu() {
         </div>
 
         <div class="task-grid">
-          <div class="els-card task-card fade-up" @click="chapterNewCount > 0 && start('new')">
+          <div class="els-card task-card fade-up" @click="start('new')">
             <div class="task-icon">🌱</div>
-            <div class="task-num">{{ Math.max(0, chapterNewCount) }}</div>
+            <div class="task-num">{{ isGuest ? CHAPTER_SIZE_FALLBACK : Math.max(0, chapterNewCount) }}</div>
             <div class="task-label">{{ t('study.newWords') }}</div>
-            <div class="task-sub">{{ t('study.chapterProgress', { learned: selectedChapterInfo?.learnedWords ?? 0, total: selectedChapterInfo?.totalWords ?? 0 }) }}</div>
-            <button class="els-btn-gradient task-btn" :disabled="chapterNewCount === 0" @click.stop="start('new')">
-              {{ t('study.startNew') }}
+            <div class="task-sub">
+              {{ isGuest
+                ? t('study.guestChapterHint')
+                : t('study.chapterProgress', { learned: selectedChapterInfo?.learnedWords ?? 0, total: selectedChapterInfo?.totalWords ?? 0 }) }}
+            </div>
+            <button class="els-btn-gradient task-btn" :disabled="!isGuest && chapterNewCount === 0" @click.stop="start('new')">
+              {{ isGuest ? t('study.guestStart') : t('study.startNew') }}
             </button>
           </div>
-          <div class="els-card task-card fade-up" @click="overview!.reviewDue > 0 && start('review')">
+          <div v-if="!isGuest" class="els-card task-card fade-up" @click="overview!.reviewDue > 0 && start('review')">
             <div class="task-icon">🔁</div>
-            <div class="task-num">{{ overview.reviewDue }}</div>
+            <div class="task-num">{{ overview!.reviewDue }}</div>
             <div class="task-label">{{ t('study.reviews') }}</div>
-            <button class="task-btn task-btn-green" :disabled="overview.reviewDue === 0" @click.stop="start('review')">
+            <button class="task-btn task-btn-green" :disabled="overview!.reviewDue === 0" @click.stop="start('review')">
               {{ t('study.startReview') }}
             </button>
           </div>
         </div>
-        <div v-if="chapterNewCount === 0 && overview.reviewDue === 0" class="all-done fade-up">
+        <div v-if="!isGuest && chapterNewCount === 0 && overview!.reviewDue === 0" class="all-done fade-up">
           {{ t('study.chapterDone') }}
           <p class="all-done-sub">
             <button v-if="selectedChapter < maxChapter" class="next-ch-link" @click="nextChapter(); start('new')">
@@ -444,7 +507,7 @@ async function backToMenu() {
           </p>
         </div>
       </template>
-      <div v-else class="els-card no-book fade-up">
+      <div v-else-if="overview && !overview.joined" class="els-card no-book fade-up">
         <p>{{ t('study.noWordbook') }}</p>
         <button class="els-btn-gradient" @click="openPicker">{{ t('study.goChoose') }} →</button>
       </div>
@@ -631,6 +694,13 @@ async function backToMenu() {
             <div class="stat-label">{{ t('study.accuracy') }}</div>
           </div>
         </div>
+        <!-- 游客：注册引导（进度从注册后开始入库） -->
+        <div v-if="isGuest" class="guest-cta fade-up">
+          <p>{{ t('study.guestDoneHint') }}</p>
+          <RouterLink :to="{ name: 'register' }" class="els-btn-gradient">
+            {{ t('study.signUpToSave') }} →
+          </RouterLink>
+        </div>
         <!-- 继续练习 -->
         <div class="next-actions">
           <button class="els-btn-gradient next-btn" @click="restartPractice('same')">
@@ -662,6 +732,48 @@ export default { name: 'StudyView' }
 
 <style scoped>
 /* ===== 章节切换行 ===== */
+.guest-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.08), rgba(162, 155, 254, 0.12));
+  border: 1.5px dashed rgba(108, 92, 231, 0.35);
+  border-radius: 14px;
+  padding: 12px 18px;
+  font-size: 13.5px;
+  color: var(--els-text-secondary);
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.guest-signup {
+  color: var(--els-primary);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.guest-signup:hover {
+  text-decoration: underline;
+}
+
+.guest-cta {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.guest-cta p {
+  color: var(--els-text-secondary);
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+
+.guest-cta .els-btn-gradient {
+  text-decoration: none;
+  display: inline-block;
+  padding: 11px 30px;
+}
+
 .chapter-bar {
   display: flex;
   align-items: center;

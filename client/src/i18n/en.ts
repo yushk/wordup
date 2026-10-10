@@ -126,6 +126,12 @@ export default {
     practiceAgain: 'Practice Again',
     dictation: 'Dictation',
     nextChapterPractice: 'Next Chapter ({n})',
+    // Guest mode
+    guestMode: '👀 Guest mode: trying without an account — progress is not saved',
+    signUpToSave: 'Sign up to save progress',
+    guestStart: 'Try Now',
+    guestChapterHint: 'Try this chapter free, no account needed',
+    guestDoneHint: 'Like it? Sign up to track progress and schedule reviews',
   },
   quiz: {
     title: 'Quiz',

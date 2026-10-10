@@ -126,6 +126,12 @@ export default {
     practiceAgain: '再练一次',
     dictation: '默写本章',
     nextChapterPractice: '下一章（第 {n} 章）',
+    // 游客体验
+    guestMode: '👀 体验模式：正在免登录体验，学习进度不会保存',
+    signUpToSave: '注册账号保存进度',
+    guestStart: '立即体验',
+    guestChapterHint: '免费体验本章，无需注册',
+    guestDoneHint: '喜欢这个练习方式？注册后自动记录学习进度、安排复习',
   },
   quiz: {
     title: '测验练习',
