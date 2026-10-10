@@ -8,7 +8,7 @@ WORKDIR /app
 # 先拷贝依赖清单，利用层缓存
 COPY server/package.json server/package-lock.json ./
 COPY server/prisma ./prisma
-RUN npm ci
+RUN npm ci && npx prisma generate
 
 # ===== 运行时 =====
 FROM node:20-alpine
