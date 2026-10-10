@@ -12,6 +12,20 @@ const { t, locale } = useI18n()
 const { speak } = useSpeech()
 const { enabled: soundOn, setEnabled: setSoundOn, keyClick, errorBeep, wordDone } = useSound()
 
+// 发音口音：us/uk，持久化（useSpeech 默认美音）
+const accent = ref<'us' | 'uk'>((localStorage.getItem('els_accent') as 'us' | 'uk') || 'us')
+function setAccent(a: 'us' | 'uk') {
+  accent.value = a
+  localStorage.setItem('els_accent', a)
+  // 切换后立即用新口音读当前词，给用户反馈
+  if (currentCard.value && phase.value === 'learning' && !wordFinishing.value) {
+    speak(currentCard.value.headword, a)
+  }
+}
+function speakWord(word: string) {
+  speak(word, accent.value)
+}
+
 const overview = ref<ReviewOverview | null>(null)
 const loading = ref(true)
 
@@ -230,7 +244,7 @@ async function start(m: 'new' | 'review', bookId?: number) {
     // 等全屏渲染完再读新词
     await nextTick()
     if (currentCard.value) {
-      speak(currentCard.value.headword)
+      speakWord(currentCard.value.headword)
     }
   } catch {
     /* 拦截器已提示 */
@@ -263,7 +277,7 @@ async function completeWord(skipped = false) {
     const grade: Grade = skipped ? 'forget' : gradeFromTyping()
     const r = await reviewApi.grade({ wordId: card.wordId, grade })
     if (!skipped) {
-      speak(card.headword)
+      speakWord(card.headword)
     }
     // 展示例句与复习间隔提示
     lastInterval.value = skipped ? null : r.intervalDays
@@ -279,7 +293,7 @@ async function completeWord(skipped = false) {
       currentIndex.value++
       resetWordState()
       if (mode.value === 'new') {
-        speak(cards.value[currentIndex.value].headword)
+        speakWord(cards.value[currentIndex.value].headword)
       }
     }
   } catch {
@@ -466,6 +480,11 @@ async function backToMenu() {
               : t('study.reviews') }}
           </span>
           <span class="session-count">{{ currentIndex + 1 }} / {{ cards.length }}</span>
+          <button
+            class="sound-btn accent-btn"
+            :title="t('study.accentTip')"
+            @click="setAccent(accent === 'us' ? 'uk' : 'us')"
+          >{{ accent === 'us' ? '🇺🇸' : '🇬🇧' }}</button>
           <button
             class="sound-btn"
             :title="soundOn ? t('study.soundOn') : t('study.soundOff')"
@@ -1007,6 +1026,11 @@ export default { name: 'StudyView' }
 
 .sound-btn:hover {
   transform: scale(1.1);
+}
+
+.accent-btn {
+  font-size: 14px;
+  margin-left: 10px;
 }
 
 .typing-progress {

@@ -120,6 +120,7 @@ export default {
     chapterNew: 'New',
     soundOn: 'Mute sounds',
     soundOff: 'Enable sounds',
+    accentTip: 'Switch US/UK accent',
   },
   quiz: {
     title: 'Quiz',

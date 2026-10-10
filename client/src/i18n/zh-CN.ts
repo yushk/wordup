@@ -120,6 +120,7 @@ export default {
     chapterNew: '未学',
     soundOn: '关闭音效',
     soundOff: '开启音效',
+    accentTip: '切换美音/英音',
   },
   quiz: {
     title: '测验练习',
