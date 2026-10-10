@@ -99,4 +99,20 @@ router.beforeEach((to) => {
   }
 })
 
+/** SEO：按路由动态设置页面标题 */
+const TITLES: Record<string, string> = {
+  home: 'WordUp · 打字背单词 - 免费在线英语学习（SM-2 记忆算法）',
+  study: '学单词 · 打字练习背单词 - WordUp',
+  quiz: '单词测验 · 四种题型检验学习成果 - WordUp',
+  reading: '分级阅读听力 · 边读边听 - WordUp',
+  'reading-detail': '文章阅读 - WordUp',
+  speaking: '口语跟读练习 - WordUp',
+  stats: '学习统计 · 打卡与学习曲线 - WordUp',
+  login: '登录 - WordUp 英语学习',
+  register: '免费注册 · 开始英语学习之旅 - WordUp',
+}
+router.afterEach((to) => {
+  document.title = TITLES[to.name as string] ?? 'WordUp · 英语学习'
+})
+
 export default router

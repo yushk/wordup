@@ -1,0 +1,7 @@
+# WordUp robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://wordup.xin/sitemap.xml
