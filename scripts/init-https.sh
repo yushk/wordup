@@ -35,6 +35,13 @@ if [ "$DOMAIN" = "renew" ]; then
     cp "certbot/etc/live/$main/fullchain.pem" certs/fullchain.pem
     cp "certbot/etc/live/$main/privkey.pem" certs/privkey.pem
   fi
+  # SAN 证书（wordup.xin + video.wordup.xin）同步到主名与 video 命名（nginx 两处引用）
+  if [ -f certbot/etc/live/wordup.xin/fullchain.pem ]; then
+    cp certbot/etc/live/wordup.xin/fullchain.pem certs/fullchain.pem
+    cp certbot/etc/live/wordup.xin/privkey.pem certs/privkey.pem
+    cp certbot/etc/live/wordup.xin/fullchain.pem certs/video.wordup.xin-fullchain.pem
+    cp certbot/etc/live/wordup.xin/privkey.pem certs/video.wordup.xin-privkey.pem
+  fi
   chmod 644 certs/*.pem 2>/dev/null || true
   docker exec wordup-nginx nginx -s reload 2>/dev/null || docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
   echo "✓ 续期检查完成"
