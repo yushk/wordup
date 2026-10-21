@@ -103,6 +103,12 @@ const navItems = [
 
     <footer class="app-footer">
       WordUp · {{ new Date().getFullYear() }} · Learn English Every Day
+      <a
+        href="https://beian.miit.gov.cn/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="icp-link"
+      >辽ICP备2026024499号-1</a>
     </footer>
   </div>
 </template>
@@ -257,6 +263,16 @@ const navItems = [
   padding: 26px;
   color: var(--els-text-secondary);
   font-size: 13px;
+}
+
+.icp-link {
+  margin-left: 12px;
+  color: var(--els-text-secondary);
+  text-decoration: none;
+}
+
+.icp-link:hover {
+  color: var(--els-primary);
 }
 
 @media (max-width: 860px) {
